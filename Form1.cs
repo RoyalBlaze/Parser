@@ -23,7 +23,6 @@ namespace PageParser
         public Form1()
         {
             InitializeComponent();
-            //ConnectionString = @"Data Source=.\SQLEXPRESS;Initial Catalog=ParsedSites;Integrated Security=True";
             ConnectionString = @"Data Source=.\SQLEXPRESS;AttachDbFilename=C:\Program Files\Microsoft SQL Server\MSSQL14.SQLEXPRESS\MSSQL\DATA\ParsedSites.mdf;Integrated Security=True";
 
         }
@@ -37,32 +36,14 @@ namespace PageParser
             crawlConfig.UserAgentString = "abot v1.0 http://code.google.com/p/abot";
 
             PoliteWebCrawler crawler = new PoliteWebCrawler(crawlConfig, null, null, null, null, null, null, null, null);
-            crawler.PageCrawlStartingAsync += crawler_ProcessPageCrawlStarting;
             crawler.PageCrawlCompleted += crawler_ProcessPageCrawlCompleted;
-            crawler.PageCrawlDisallowedAsync += crawler_PageCrawlDisallowed;
-            crawler.PageLinksCrawlDisallowedAsync += crawler_PageLinksCrawlDisallowed;
-            crawler.PageCrawlCompletedAsync += crawler_ProcessPageCrawlCompleted;
-
-
 
             CrawlResult result = crawler.Crawl(new Uri("https://belaruspartisan.by/")); //This is synchronous, it will not go to the next line until the crawl has completed
-
-            
-
             if (result.ErrorOccurred)
                 MessageBox.Show("Crawl of " + result.RootUri.AbsoluteUri + " completed with error: " + result.ErrorException.Message);
-            // Console.WriteLine("Crawl of {0} completed with error: {1}", result.RootUri.AbsoluteUri, result.ErrorException.Message);
             else
                 MessageBox.Show("Crawl of " + result.RootUri.AbsoluteUri + " completed without error.");
-            //Console.WriteLine("Crawl of {0} completed without error.", result.RootUri.AbsoluteUri);
-
-        }
-
-        void crawler_ProcessPageCrawlStarting(object sender, PageCrawlStartingArgs e)
-        {
-            PageToCrawl pageToCrawl = e.PageToCrawl;
-            //MessageBox.Show("About to crawl link " + pageToCrawl.Uri.AbsoluteUri + " which was found on page " + pageToCrawl.ParentUri.AbsoluteUri);
-            //Console.WriteLine("About to crawl link {0} which was found on page {1}", pageToCrawl.Uri.AbsoluteUri, pageToCrawl.ParentUri.AbsoluteUri);
+           
         }
 
         void crawler_ProcessPageCrawlCompleted(object sender, PageCrawlCompletedArgs e)
@@ -73,8 +54,9 @@ namespace PageParser
             var angleSharpHtmlDocument = crawledPage.AngleSharpHtmlDocument; //AngleSharp parser
             var url = crawledPage.Uri;
             var htmltext = crawledPage.Content.Text;
-            var c = htmlAgilityPackDocument.DocumentNode.SelectSingleNode("//h1[@class = 'name']"); // DONE!!
+           var c = htmlAgilityPackDocument.DocumentNode.SelectSingleNode("//h1[@class = 'name']"); // DONE!!
             var b = htmlAgilityPackDocument.DocumentNode.SelectSingleNode("//div[@class='news-detail']");
+            var d = htmlAgilityPackDocument.DocumentNode.SelectSingleNode("//meta[@name = 'keywords']");               
             if (c != null)
             {
                 if (b != null)
@@ -82,9 +64,9 @@ namespace PageParser
                     if(htmltext!= null)
                     { 
                     Int64 id;
-                    var sql = "INSERT INTO Pages (PageURL,HTMLText,PageText,PageTitle,Id_Website) " +
-               "VALUES (@PageURL,@HTMLText,@PageText,@PageTitle,@Id_Website); SET @Id_Page=SCOPE_IDENTITY()";
-                        using (SqlConnection sqlConn = new SqlConnection(ConnectionString))
+                    var sql = "INSERT INTO Pages (PageURL,HTMLText,PageText,PageTitle,PageKeywords,Id_Website) " +
+               "VALUES (@PageURL,@HTMLText,@PageText,@PageTitle,@PageKeywords,@Id_Website); SET @Id_Page=SCOPE_IDENTITY()";
+                        using (SqlConnection sqlConn = new SqlConnection(ConnectionString)) //insert into table Pages
                         {
 
                             sqlConn.Open();
@@ -95,46 +77,25 @@ namespace PageParser
                                 cmd.Parameters.AddWithValue("@HTMLText", htmltext.ToString());
                                 cmd.Parameters.AddWithValue("@PageText", b.InnerText.ToString());
                                 cmd.Parameters.AddWithValue("@PageTitle", c.InnerText.ToString());
+                                cmd.Parameters.AddWithValue("@PageKeywords", d.Attributes["content"].Value.ToString());
                                 cmd.Parameters.AddWithValue("@Id_Website", 1);
 
                                 SqlParameter idParam = new SqlParameter
                                 {
                                     ParameterName = "@Id_Page",
                                     SqlDbType = SqlDbType.Int,
-                                    Direction = ParameterDirection.Output, // параметр выходной
+                                    Direction = ParameterDirection.Output,
                                 };
                                 cmd.Parameters.Add(idParam);
                                 cmd.ExecuteNonQuery();
                                 cmd.CommandText = "SELECT @@IDENTITY";
                                 id = Convert.ToInt64(cmd.ExecuteScalar());
-                                //MessageBox.Show("insert status: done!");
                             }
                             sqlConn.Close();
                         }
                     }
                 }
-
             }
-        }
-
-        void crawler_PageLinksCrawlDisallowed(object sender, PageLinksCrawlDisallowedArgs e)
-        {
-            CrawledPage crawledPage = e.CrawledPage;
-            //MessageBox.Show("Did not crawl the links on page " + crawledPage.Uri.AbsoluteUri + " due to " + e.DisallowedReason);
-            //Console.WriteLine("Did not crawl the links on page {0} due to {1}", crawledPage.Uri.AbsoluteUri, e.DisallowedReason);
-        }
-
-        void crawler_PageCrawlDisallowed(object sender, PageCrawlDisallowedArgs e)
-        {
-            PageToCrawl pageToCrawl = e.PageToCrawl;
-            //MessageBox.Show("Did not crawl page " + pageToCrawl.Uri.AbsoluteUri + " due to " + e.DisallowedReason);
-            //Console.WriteLine("Did not crawl page {0} due to {1}", pageToCrawl.Uri.AbsoluteUri, e.DisallowedReason);
-        }
-
-        private void dBToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            var a = new ParsedPages();
-            a.ShowDialog();
         }
     }
 }
